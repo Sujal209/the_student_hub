@@ -20,6 +20,11 @@ export function formatBytes(bytes: number, decimals = 2) {
 export function formatDate(date: string | Date, options?: Intl.DateTimeFormatOptions) {
   const dateObj = typeof date === 'string' ? new Date(date) : date;
   
+  // Validate date
+  if (isNaN(dateObj.getTime())) {
+    return 'Invalid Date';
+  }
+  
   const defaultOptions: Intl.DateTimeFormatOptions = {
     year: 'numeric',
     month: 'short',
