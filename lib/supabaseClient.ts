@@ -85,16 +85,21 @@ export const isUserAdmin = async (userId?: string): Promise<boolean> => {
 // Helper function to get signed URL for file download
 export const getSignedUrl = async (path: string, expiresIn: number = 3600): Promise<string | null> => {
   try {
-    const { data, error } = await supabase.storage
-      .from('student-notes')
-      .createSignedUrl(path, expiresIn);
+    // Use API route to generate signed URL with proper authentication
+    const response = await fetch('/api/files/signed-url', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ path, expiresIn })
+    });
 
-    if (error) {
-      console.error('Error creating signed URL:', error);
-      return null;
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    return data.signedUrl;
+    const { signedUrl } = await response.json();
+    return signedUrl;
   } catch (error) {
     console.error('Error creating signed URL:', error);
     return null;

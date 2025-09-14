@@ -92,7 +92,16 @@ export const UploadForm: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!user || !profile || files.length === 0) {
+    if (!user) {
+      toast({
+        title: 'Error',
+        description: 'You must be logged in to upload files',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (files.length === 0) {
       toast({
         title: 'Error',
         description: 'Please select at least one file to upload',
@@ -115,41 +124,53 @@ export const UploadForm: React.FC = () => {
 
     try {
       for (const file of files) {
-        const filePath = generateFilePath(user.id, file.name, profile.college_domain);
+        const collegeDomain = profile?.college_domain || 'general';
+        const filePath = generateFilePath(user.id, file.name, collegeDomain);
         
         uploadPromises.push(
           (async () => {
+            console.log('Uploading file:', file.name, 'to path:', filePath);
+            
             // Upload file to storage
             const { data: uploadData, error: uploadError } = await uploadFile(file, filePath);
             
             if (uploadError) {
+              console.error('Upload error:', uploadError);
               throw new Error(`Failed to upload ${file.name}: ${uploadError.message}`);
             }
 
+            console.log('File uploaded successfully, creating database record...');
+            
             // Create note record in database
+            const noteData = {
+              title: formData.title,
+              description: formData.description || null,
+              subject_id: formData.subject_id || null,
+              uploader_id: user.id,
+              file_name: file.name,
+              file_path: filePath,
+              file_size: file.size,
+              file_type: file.name.split('.').pop()?.toLowerCase() as any,
+              mime_type: file.type,
+              semester: formData.semester || null,
+              year_of_study: formData.year_of_study,
+              tags: formData.tags.length > 0 ? formData.tags : null,
+              visibility: formData.visibility,
+              college_domain: collegeDomain,
+            };
+            
+            console.log('Inserting note data:', noteData);
+            
             const { error: dbError } = await supabase
               .from('notes')
-              .insert({
-                title: formData.title,
-                description: formData.description || null,
-                subject_id: formData.subject_id || null,
-                uploader_id: user.id,
-                file_name: file.name,
-                file_path: filePath,
-                file_size: file.size,
-                file_type: file.name.split('.').pop()?.toLowerCase() as any,
-                mime_type: file.type,
-                semester: formData.semester || null,
-                year_of_study: formData.year_of_study,
-                tags: formData.tags.length > 0 ? formData.tags : null,
-                visibility: formData.visibility,
-                college_domain: profile.college_domain!,
-              });
+              .insert(noteData);
 
             if (dbError) {
+              console.error('Database error:', dbError);
               throw new Error(`Failed to save note metadata: ${dbError.message}`);
             }
 
+            console.log('Note saved successfully!');
             return { file: file.name, success: true };
           })()
         );
@@ -161,10 +182,10 @@ export const UploadForm: React.FC = () => {
 
       if (successful > 0) {
         toast({
-          title: 'Upload Complete',
+          title: 'Upload Complete! 🎉',
           description: `Successfully uploaded ${successful} file${successful > 1 ? 's' : ''}${
             failed > 0 ? ` (${failed} failed)` : ''
-          }`,
+          }. Go to Browse Notes to see your upload!`,
         });
 
         // Reset form

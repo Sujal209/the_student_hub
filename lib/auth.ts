@@ -62,17 +62,29 @@ export const getCurrentUser = async (): Promise<AuthUser | null> => {
   
   if (!user) return null;
 
-  // Fetch user profile from our users table
-  const { data: profile } = await supabase
-    .from('users')
-    .select('*')
-    .eq('id', user.id)
-    .single();
+  try {
+    // Fetch user profile from our users table
+    const { data: profile, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', user.id)
+      .single();
 
-  return {
-    ...user,
-    profile: profile || undefined,
-  };
+    if (error) {
+      console.warn('Could not fetch user profile:', error);
+    }
+
+    return {
+      ...user,
+      profile: profile || undefined,
+    };
+  } catch (error) {
+    console.warn('Error fetching user profile:', error);
+    return {
+      ...user,
+      profile: undefined,
+    };
+  }
 };
 
 // Update user profile
@@ -233,10 +245,15 @@ export const createUserProfile = async (user: User, additionalData?: any) => {
 
 // Update last login timestamp
 export const updateLastLogin = async (userId: string) => {
-  await supabase
-    .from('users')
-    .update({ last_login_at: new Date().toISOString() })
-    .eq('id', userId);
+  try {
+    await supabase
+      .from('users')
+      .update({ last_login_at: new Date().toISOString() })
+      .eq('id', userId);
+  } catch (error) {
+    console.warn('Could not update last login:', error);
+    // Don't throw error - this shouldn't break authentication
+  }
 };
 
 // Auth state change listener

@@ -20,10 +20,10 @@ export async function GET(request: NextRequest) {
       .select(`
         *,
         users!notes_uploader_id_fkey(full_name),
-        subjects!notes_subject_id_fkey(name, color)
+        subjects(name)
       `)
-      .eq('visibility', 'public')
-      .eq('is_flagged', false)
+      .eq('status', 'active')
+      .in('visibility', ['public', 'college_only'])
       .order('created_at', { ascending: false })
       .range(page * limit, (page + 1) * limit - 1);
 

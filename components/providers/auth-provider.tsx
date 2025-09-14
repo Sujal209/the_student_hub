@@ -47,8 +47,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(currentUser);
       setProfile(currentUser?.profile || null);
     } catch (error) {
-      console.error('Error refreshing profile:', error);
-      setUser(null);
+      console.warn('Error refreshing profile (database may need setup):', error);
+      // Don't set user to null on profile errors - keep the auth user
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (authUser) {
+        setUser({ id: authUser.id, email: authUser.email || '', profile: null });
+      }
       setProfile(null);
     }
   };
@@ -70,13 +74,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const { data: { session } } = await supabase.auth.getSession();
         
         if (session?.user) {
-          const currentUser = await getCurrentUser();
-          setUser(currentUser);
-          setProfile(currentUser?.profile || null);
-          
-          // Update last login
-          if (currentUser) {
-            await updateLastLogin(currentUser.id);
+          try {
+            const currentUser = await getCurrentUser();
+            setUser(currentUser);
+            setProfile(currentUser?.profile || null);
+            
+            // Update last login
+            if (currentUser) {
+              await updateLastLogin(currentUser.id);
+            }
+          } catch (error) {
+            console.warn('Database not ready, using basic auth:', error);
+            setUser({ id: session.user.id, email: session.user.email || '', profile: null });
+            setProfile(null);
           }
         }
       } catch (error) {

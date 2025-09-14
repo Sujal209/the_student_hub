@@ -1,0 +1,16 @@
+{
+  "name": "Student Notes Hub",
+  "short_name": "Notes Hub",
+  "description": "A college-specific notes sharing platform",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3B82F6",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "any",
+      "type": "image/x-icon"
+    }
+  ]
+}

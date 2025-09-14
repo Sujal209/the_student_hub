@@ -40,24 +40,22 @@ export const NotesGrid: React.FC<NotesGridProps> = ({
   const NOTES_PER_PAGE = 12;
 
   const fetchNotes = async (pageNumber: number, reset: boolean = false) => {
-    if (!profile?.college_domain) return;
-
     try {
       setLoading(true);
       setError(null);
 
       let query = supabase
         .from('notes')
-        .select(`
-          *,
-          users!notes_uploader_id_fkey(full_name),
-          subjects!notes_subject_id_fkey(name, color)
-        `)
-        .eq('college_domain', profile.college_domain)
-        .eq('visibility', 'public')
-        .eq('is_flagged', false)
+        .select('*')
+        .eq('status', 'active')
+        .in('visibility', ['public', 'college_only'])
         .order('created_at', { ascending: false })
         .range(pageNumber * NOTES_PER_PAGE, (pageNumber + 1) * NOTES_PER_PAGE - 1);
+
+      // Filter by college domain if available
+      if (profile?.college_domain) {
+        query = query.eq('college_domain', profile.college_domain);
+      }
 
       // Apply filters
       if (filters.subject_id) {
@@ -84,12 +82,50 @@ export const NotesGrid: React.FC<NotesGridProps> = ({
         throw fetchError;
       }
 
-      const formattedNotes: Note[] = (data || []).map(note => ({
-        ...note,
-        uploader_name: note.users?.full_name || 'Unknown User',
-        subject_name: note.subjects?.name || 'Unknown Subject',
-        subject_color: note.subjects?.color || '#3B82F6'
-      }));
+      // Fetch user details for each note
+      const formattedNotes: Note[] = [];
+      
+      for (const note of data || []) {
+        let uploaderName = 'Anonymous';
+        let subjectName = 'General';
+        
+        try {
+          // Fetch uploader info
+          if (note.uploader_id) {
+            const { data: userData } = await supabase
+              .from('users')
+              .select('full_name, email')
+              .eq('id', note.uploader_id)
+              .single();
+            
+            if (userData) {
+              uploaderName = userData.full_name || userData.email?.split('@')[0] || 'Anonymous';
+            }
+          }
+          
+          // Fetch subject info
+          if (note.subject_id) {
+            const { data: subjectData } = await supabase
+              .from('subjects')
+              .select('name')
+              .eq('id', note.subject_id)
+              .single();
+              
+            if (subjectData) {
+              subjectName = subjectData.name;
+            }
+          }
+        } catch (err) {
+          console.warn('Error fetching related data:', err);
+        }
+        
+        formattedNotes.push({
+          ...note,
+          uploader_name: uploaderName,
+          subject_name: subjectName,
+          subject_color: '#3B82F6'
+        });
+      }
 
       if (reset) {
         setNotes(formattedNotes);
@@ -147,14 +183,17 @@ export const NotesGrid: React.FC<NotesGridProps> = ({
         <p className="text-muted-foreground mb-4">
           {searchMode 
             ? 'Try adjusting your search terms or filters'
-            : 'Be the first to share study materials with your classmates!'
+            : 'Upload your first note to start sharing knowledge with your classmates!'
           }
         </p>
-        {!searchMode && (
-          <Button>
-            Upload Your First Note
-          </Button>
-        )}
+        <div className="text-sm text-muted-foreground mt-2">
+          <p>💡 Tips for uploading:</p>
+          <ul className="mt-2 space-y-1">
+            <li>• Upload PDF, DOCX, PPTX files</li>
+            <li>• Add descriptive titles and tags</li>
+            <li>• Choose appropriate subjects</li>
+          </ul>
+        </div>
       </div>
     );
   }

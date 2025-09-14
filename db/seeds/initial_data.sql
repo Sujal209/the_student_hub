@@ -5,7 +5,8 @@
 INSERT INTO public.college_configs (domain, name, logo_url, primary_color, secondary_color, description, contact_email)
 VALUES 
     ('example.edu', 'Example University', '/images/example-logo.png', '#1E40AF', '#6B7280', 'A premier educational institution', 'admin@example.edu'),
-    ('test.edu', 'Test College', '/images/test-logo.png', '#059669', '#6B7280', 'Test College for development', 'admin@test.edu')
+    ('test.edu', 'Test College', '/images/test-logo.png', '#059669', '#6B7280', 'Test College for development', 'admin@test.edu'),
+    ('somaiya.edu', 'KJSIT College', '/images/test-logo.png', '#ce0f0fff', '#ceff1eff', 'KJSIT College for development', 'somaiya_admin@test.edu')
 ON CONFLICT (domain) DO NOTHING;
 
 -- Sample subjects for different colleges
