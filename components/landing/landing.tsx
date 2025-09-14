@@ -4,13 +4,14 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { AuthForm } from '@/components/auth/auth-form';
 
+// Move environment variables outside component
+const collegeName = process.env.NEXT_PUBLIC_COLLEGE_NAME || 'Your College';
+const appName = process.env.NEXT_PUBLIC_APP_NAME || 'Student Notes Hub';
+const logoUrl = process.env.NEXT_PUBLIC_BRAND_LOGO_URL;
+
 export const Landing: React.FC = () => {
   const [showAuthForm, setShowAuthForm] = useState(false);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
-
-  const collegeName = process.env.NEXT_PUBLIC_COLLEGE_NAME || 'Your College';
-  const appName = process.env.NEXT_PUBLIC_APP_NAME || 'Student Notes Hub';
-  const logoUrl = process.env.NEXT_PUBLIC_BRAND_LOGO_URL;
 
   const handleGetStarted = () => {
     setAuthMode('signup');

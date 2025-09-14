@@ -2,6 +2,11 @@
 
 import React, { useState } from 'react';
 import { useAuth } from '@/components/providers/auth-provider';
+
+// Move environment variables outside component
+const collegeName = process.env.NEXT_PUBLIC_COLLEGE_NAME || 'Your College';
+const appName = process.env.NEXT_PUBLIC_APP_NAME || 'Student Notes Hub';
+const logoUrl = process.env.NEXT_PUBLIC_BRAND_LOGO_URL;
 import { Button } from '@/components/ui/button';
 import { NotesGrid } from '@/components/notes/notes-grid';
 import { UploadForm } from '@/components/upload/upload-form';
@@ -23,10 +28,8 @@ export const Dashboard: React.FC = () => {
   const { user, profile, signOut } = useAuth();
   const [currentView, setCurrentView] = useState<DashboardView>('browse');
   const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  const collegeName = process.env.NEXT_PUBLIC_COLLEGE_NAME || 'Your College';
-  const appName = process.env.NEXT_PUBLIC_APP_NAME || 'Student Notes Hub';
-  const logoUrl = process.env.NEXT_PUBLIC_BRAND_LOGO_URL;
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchFilters, setSearchFilters] = useState({});
 
   const navigation = [
     {
@@ -76,8 +79,18 @@ export const Dashboard: React.FC = () => {
                 Find exactly what you need from thousands of study materials
               </p>
             </div>
-            <SearchBar />
-            <NotesGrid searchMode={true} />
+            <SearchBar 
+              onSearch={(query, filters) => {
+                setSearchQuery(query);
+                setSearchFilters(filters);
+              }}
+              auto={true}
+            />
+            <NotesGrid 
+              searchMode={true} 
+              searchQuery={searchQuery}
+              filters={searchFilters}
+            />
           </div>
         );
       case 'upload':

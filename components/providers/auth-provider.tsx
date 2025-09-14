@@ -81,7 +81,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             
             // Update last login
             if (currentUser) {
-              await updateLastLogin(currentUser.id);
+              try {
+                await updateLastLogin(currentUser.id);
+              } catch (error) {
+                console.warn('Failed to update last login:', error);
+              }
             }
           } catch (error) {
             console.warn('Database not ready, using basic auth:', error);
@@ -109,7 +113,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             
             // Update last login
             if (currentUser) {
-              await updateLastLogin(currentUser.id);
+              try {
+                await updateLastLogin(currentUser.id);
+              } catch (error) {
+                console.warn('Failed to update last login:', error);
+              }
             }
           } catch (error) {
             console.error('Error handling sign in:', error);

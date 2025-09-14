@@ -311,12 +311,24 @@ export const UploadForm: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="semester">Semester</Label>
-            <Input
-              id="semester"
+            <Select
               value={formData.semester}
-              onChange={(e) => handleInputChange('semester', e.target.value)}
-              placeholder="e.g., Fall 2024"
-            />
+              onValueChange={(value) => handleInputChange('semester', value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select semester" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">Semester 1</SelectItem>
+                <SelectItem value="2">Semester 2</SelectItem>
+                <SelectItem value="3">Semester 3</SelectItem>
+                <SelectItem value="4">Semester 4</SelectItem>
+                <SelectItem value="5">Semester 5</SelectItem>
+                <SelectItem value="6">Semester 6</SelectItem>
+                <SelectItem value="7">Semester 7</SelectItem>
+                <SelectItem value="8">Semester 8</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           
           <div className="space-y-2">
@@ -341,11 +353,12 @@ export const UploadForm: React.FC = () => {
         {/* Tags */}
         <div className="space-y-2">
           <Label htmlFor="tags">Tags</Label>
-          <Input
+          <Textarea
             id="tags"
             value={formData.tags.join(', ')}
             onChange={(e) => handleTagsChange(e.target.value)}
             placeholder="e.g., exam-prep, lecture-notes, tutorial"
+            rows={2}
           />
           <p className="text-xs text-muted-foreground">
             Separate tags with commas to help others find your notes

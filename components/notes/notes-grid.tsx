@@ -8,6 +8,9 @@ import { NoteCard } from './note-card';
 import { Button } from '@/components/ui/button';
 import { Loader2, FileText, AlertCircle } from 'lucide-react';
 
+// Simple in-memory cache to speed up repeated views/searches
+const notesCache = new Map<string, any[]>();
+
 type Note = Database['public']['Tables']['notes']['Row'] & {
   uploader_name: string;
   subject_name: string;
@@ -25,6 +28,28 @@ interface NotesGridProps {
   };
 }
 
+// Escape % and _ for ILIKE patterns
+const escapeLike = (str: string) => str.replace(/[%_]/g, '\\$&');
+
+const makeCacheKey = (
+  collegeDomain: string | undefined,
+  searchMode: boolean,
+  searchQuery: string,
+  filters: NotesGridProps['filters'],
+  page: number,
+) => {
+  return JSON.stringify({ collegeDomain, searchMode, searchQuery, filters, page });
+};
+
+// Columns we select for both main fetch and random suggestions (with joins)
+const SELECT_COLUMNS = `
+  id, title, description, subject_id, uploader_id, file_name, file_path, file_size, file_type, mime_type,
+  semester, year_of_study, tags, visibility, college_domain, download_count, is_verified, is_flagged,
+  flag_reason, flagged_by, flagged_at, created_at, updated_at,
+  uploader:users!notes_uploader_id_fkey (full_name, email),
+  subject:subjects!notes_subject_id_fkey (name, color)
+`;
+
 export const NotesGrid: React.FC<NotesGridProps> = ({ 
   searchMode = false,
   searchQuery = '',
@@ -32,6 +57,7 @@ export const NotesGrid: React.FC<NotesGridProps> = ({
 }) => {
   const { profile } = useAuth();
   const [notes, setNotes] = useState<Note[]>([]);
+  const [randomNotes, setRandomNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(0);
@@ -39,15 +65,68 @@ export const NotesGrid: React.FC<NotesGridProps> = ({
 
   const NOTES_PER_PAGE = 12;
 
-  const fetchNotes = async (pageNumber: number, reset: boolean = false) => {
+  // Map joined rows into Note objects
+  const mapRows = (rows: any[]): Note[] => {
+    return (rows || []).map((n: any) => {
+      const uploaderName = n?.uploader?.full_name || n?.uploader?.email?.split('@')[0] || 'Anonymous';
+      const subjectName = n?.subject?.name || 'General';
+      const subjectColor = n?.subject?.color || '#3B82F6';
+      const { uploader, subject, ...noteFields } = n;
+      return {
+        ...noteFields,
+        uploader_name: uploaderName,
+        subject_name: subjectName,
+        subject_color: subjectColor,
+      } as Note;
+    });
+  };
+
+  // Fetch a quick set of random notes (recent + client-side shuffle)
+  const fetchRandomNotes = async () => {
     try {
-      setLoading(true);
+      let q = supabase
+        .from('notes')
+        .select(SELECT_COLUMNS)
+        .in('visibility', ['public', 'college_only'])
+        .order('created_at', { ascending: false })
+        .limit(24);
+
+      if (profile?.college_domain) {
+        q = q.eq('college_domain', profile.college_domain);
+      }
+
+      const { data, error: rndError } = await q;
+      if (rndError || !data) return;
+
+      const arr = mapRows(data);
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      setRandomNotes(arr.slice(0, NOTES_PER_PAGE));
+    } catch {
+      // ignore
+    }
+  };
+
+  const fetchNotes = async (pageNumber: number, reset: boolean = false) => {
+    setLoading(true);
+    try {
       setError(null);
 
+      // Serve from cache for first page queries when possible
+      const cacheKey = makeCacheKey(profile?.college_domain, searchMode, searchQuery.trim(), filters, pageNumber);
+      if (reset && pageNumber === 0 && notesCache.has(cacheKey)) {
+        const cached = notesCache.get(cacheKey)! as Note[];
+        setNotes(cached);
+        setHasMore(cached.length === NOTES_PER_PAGE);
+        return;
+      }
+
+      // Build base query with joined relations to avoid N+1 requests
       let query = supabase
         .from('notes')
-        .select('*')
-        .eq('status', 'active')
+        .select(SELECT_COLUMNS)
         .in('visibility', ['public', 'college_only'])
         .order('created_at', { ascending: false })
         .range(pageNumber * NOTES_PER_PAGE, (pageNumber + 1) * NOTES_PER_PAGE - 1);
@@ -64,73 +143,33 @@ export const NotesGrid: React.FC<NotesGridProps> = ({
       if (filters.semester) {
         query = query.eq('semester', filters.semester);
       }
-      if (filters.year) {
+      if (typeof filters.year === 'number') {
         query = query.eq('year_of_study', filters.year);
       }
       if (filters.tags && filters.tags.length > 0) {
         query = query.overlaps('tags', filters.tags);
       }
 
-      // Apply search if in search mode
-      if (searchMode && searchQuery) {
-        query = query.textSearch('title', searchQuery);
+      // Apply search if in search mode (use ILIKE fallback for now)
+      if (searchMode && searchQuery.trim()) {
+        const q = escapeLike(searchQuery.trim());
+        query = query.or(`title.ilike.%${q}%,description.ilike.%${q}%`);
       }
 
       const { data, error: fetchError } = await query;
+      if (fetchError) throw fetchError;
 
-      if (fetchError) {
-        throw fetchError;
-      }
-
-      // Fetch user details for each note
-      const formattedNotes: Note[] = [];
-      
-      for (const note of data || []) {
-        let uploaderName = 'Anonymous';
-        let subjectName = 'General';
-        
-        try {
-          // Fetch uploader info
-          if (note.uploader_id) {
-            const { data: userData } = await supabase
-              .from('users')
-              .select('full_name, email')
-              .eq('id', note.uploader_id)
-              .single();
-            
-            if (userData) {
-              uploaderName = userData.full_name || userData.email?.split('@')[0] || 'Anonymous';
-            }
-          }
-          
-          // Fetch subject info
-          if (note.subject_id) {
-            const { data: subjectData } = await supabase
-              .from('subjects')
-              .select('name')
-              .eq('id', note.subject_id)
-              .single();
-              
-            if (subjectData) {
-              subjectName = subjectData.name;
-            }
-          }
-        } catch (err) {
-          console.warn('Error fetching related data:', err);
-        }
-        
-        formattedNotes.push({
-          ...note,
-          uploader_name: uploaderName,
-          subject_name: subjectName,
-          subject_color: '#3B82F6'
-        });
-      }
+      // Map joined data into Note shape
+      const formattedNotes: Note[] = mapRows(data);
 
       if (reset) {
         setNotes(formattedNotes);
+        // Cache first page results for instant back/forward between tabs
+        if (pageNumber === 0) {
+          notesCache.set(cacheKey, formattedNotes);
+        }
       } else {
-        setNotes(prev => [...prev, ...formattedNotes]);
+        setNotes((prev) => [...prev, ...formattedNotes]);
       }
 
       setHasMore(formattedNotes.length === NOTES_PER_PAGE);
@@ -144,8 +183,15 @@ export const NotesGrid: React.FC<NotesGridProps> = ({
 
   useEffect(() => {
     setPage(0);
+    // Clear cache for this key if query/filters changed (to avoid stale results)
+    const cacheKey = makeCacheKey(profile?.college_domain, searchMode, searchQuery.trim(), filters, 0);
+    notesCache.delete(cacheKey);
+    // Fetch random suggestions immediately so UI is not empty
+    setRandomNotes([]);
+    fetchRandomNotes();
     fetchNotes(0, true);
-  }, [profile?.college_domain, searchQuery, filters]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.college_domain, searchQuery, JSON.stringify(filters)]);
 
   const loadMore = () => {
     const nextPage = page + 1;
@@ -153,7 +199,23 @@ export const NotesGrid: React.FC<NotesGridProps> = ({
     fetchNotes(nextPage);
   };
 
+  // While loading the first page, prefer showing random notes instead of a spinner
   if (loading && notes.length === 0) {
+    if (randomNotes.length > 0) {
+      return (
+        <div className="space-y-4">
+          <div className="text-center text-sm text-muted-foreground">
+            Showing random notes while we fetch your results...
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {randomNotes.map((note) => (
+              <NoteCard key={`rnd-${note.id}`} note={note} onUpdate={() => fetchNotes(0, true)} />
+            ))}
+          </div>
+        </div>
+      );
+    }
+    // Fallback spinner if we couldn't get random notes quickly
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />

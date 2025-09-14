@@ -141,9 +141,16 @@ CREATE INDEX IF NOT EXISTS idx_notes_uploader_id ON public.notes(uploader_id);
 CREATE INDEX IF NOT EXISTS idx_notes_subject_id ON public.notes(subject_id);
 CREATE INDEX IF NOT EXISTS idx_notes_college_domain ON public.notes(college_domain);
 CREATE INDEX IF NOT EXISTS idx_notes_created_at ON public.notes(created_at DESC);
+-- Composite indexes to speed up common filters and sorts
+CREATE INDEX IF NOT EXISTS idx_notes_college_created_at ON public.notes(college_domain, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notes_college_subject_created_at ON public.notes(college_domain, subject_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_notes_visibility ON public.notes(visibility);
 CREATE INDEX IF NOT EXISTS idx_notes_tags ON public.notes USING GIN(tags);
 CREATE INDEX IF NOT EXISTS idx_notes_search ON public.notes USING GIN(to_tsvector('english', title || ' ' || COALESCE(description, '')));
+-- Optional trigram indexes to speed up ILIKE searches (requires pg_trgm)
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX IF NOT EXISTS idx_notes_title_trgm ON public.notes USING GIN (title gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_notes_description_trgm ON public.notes USING GIN (description gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_subjects_college_domain ON public.subjects(college_domain);
 CREATE INDEX IF NOT EXISTS idx_note_downloads_note_id ON public.note_downloads(note_id);
 CREATE INDEX IF NOT EXISTS idx_note_downloads_user_id ON public.note_downloads(user_id);
