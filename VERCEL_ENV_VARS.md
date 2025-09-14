@@ -16,7 +16,7 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-from-supabase-dashboard
 NEXT_PUBLIC_APP_NAME=Student Notes Hub
 NEXT_PUBLIC_APP_DESCRIPTION=A college-specific notes sharing platform
 NEXT_PUBLIC_COLLEGE_NAME=Your College Name
-NEXT_PUBLIC_COLLEGE_DOMAIN=your-college.edu
+NEXT_PUBLIC_COLLEGE_DOMAIN=somaiya.edu
 NEXT_PUBLIC_SITE_URL=https://your-app.vercel.app
 ```
 
