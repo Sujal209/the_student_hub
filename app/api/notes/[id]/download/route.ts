@@ -28,7 +28,7 @@ export async function POST(
     // Create signed URL for download
     const { data: signedUrlData, error: signedUrlError } = await supabase.storage
       .from('student-notes')
-      .createSignedUrl(note.file_path, 3600); // 1 hour expiry
+      .createSignedUrl((note as any).file_path, 3600); // 1 hour expiry
 
     if (signedUrlError) {
       return NextResponse.json({ error: 'Failed to generate download link' }, { status: 500 });
