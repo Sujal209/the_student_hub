@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabaseClient';
+import { validateUUID, sanitizeString } from '@/lib/sanitize';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    // Validate UUID format
+    if (!validateUUID(params.id)) {
+      return NextResponse.json({ error: 'Invalid note ID format' }, { status: 400 });
+    }
+
     const supabase = createAdminClient();
 
     const { data, error } = await supabase
@@ -41,16 +47,27 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Validate UUID format
+    if (!validateUUID(params.id)) {
+      return NextResponse.json({ error: 'Invalid note ID format' }, { status: 400 });
+    }
+
     const body = await request.json();
     const {
-      title,
-      description,
+      title: rawTitle,
+      description: rawDescription,
       subject_id,
-      semester,
+      semester: rawSemester,
       year_of_study,
-      tags,
+      tags: rawTags,
       visibility,
     } = body;
+
+    // Sanitize inputs
+    const title = rawTitle ? sanitizeString(rawTitle) : undefined;
+    const description = rawDescription ? sanitizeString(rawDescription) : undefined;
+    const semester = rawSemester ? sanitizeString(rawSemester) : undefined;
+    const tags = rawTags ? rawTags.map((tag: string) => sanitizeString(tag)) : undefined;
 
     const supabase = createAdminClient();
 
@@ -93,6 +110,11 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Validate UUID format
+    if (!validateUUID(params.id)) {
+      return NextResponse.json({ error: 'Invalid note ID format' }, { status: 400 });
+    }
+
     const supabase = createAdminClient();
 
     // First, get the note to check file path

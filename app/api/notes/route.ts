@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabaseClient';
 import { cookies } from 'next/headers';
+import { sanitizeSearchQuery, sanitizeString } from '@/lib/sanitize';
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '0');
     const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 50);
-    const search = searchParams.get('search') || '';
+    const search = sanitizeSearchQuery(searchParams.get('search') || '');
     const subjectId = searchParams.get('subject_id');
-    const semester = searchParams.get('semester');
+    const semester = sanitizeString(searchParams.get('semester') || '');
     const year = searchParams.get('year');
-    const tags = searchParams.get('tags')?.split(',').filter(Boolean);
+    const tags = searchParams.get('tags')?.split(',').map(tag => sanitizeString(tag)).filter(Boolean);
 
     const supabase = createAdminClient();
 
@@ -72,21 +73,28 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const {
-      title,
-      description,
+      title: rawTitle,
+      description: rawDescription,
       subject_id,
-      file_name,
+      file_name: rawFileName,
       file_path,
       file_size,
       file_type,
       mime_type,
-      semester,
+      semester: rawSemester,
       year_of_study,
-      tags,
+      tags: rawTags,
       visibility,
       college_domain,
       uploader_id
     } = body;
+
+    // Sanitize inputs
+    const title = sanitizeString(rawTitle);
+    const description = rawDescription ? sanitizeString(rawDescription) : null;
+    const file_name = sanitizeString(rawFileName);
+    const semester = rawSemester ? sanitizeString(rawSemester) : null;
+    const tags = rawTags ? rawTags.map((tag: string) => sanitizeString(tag)) : null;
 
     // Validation
     if (!title || !file_name || !file_path || !uploader_id || !college_domain) {

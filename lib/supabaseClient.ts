@@ -35,17 +35,27 @@ export const createAdminClient = () => {
 
 // Helper function to get the current user's college domain
 export const getUserCollegeDomain = async () => {
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) return null;
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) return null;
 
-  const { data: userData } = await supabase
-    .from('users')
-    .select('college_domain')
-    .eq('id', user.id)
-    .single();
+    const { data: userData, error } = await supabase
+      .from('users')
+      .select('college_domain')
+      .eq('id', user.id)
+      .single();
 
-  return userData?.college_domain || null;
+    if (error) {
+      console.error('Error fetching user college domain:', error);
+      return null;
+    }
+
+    return userData?.college_domain || null;
+  } catch (error) {
+    console.error('Error in getUserCollegeDomain:', error);
+    return null;
+  }
 };
 
 // Helper function to extract college domain from email
@@ -68,18 +78,28 @@ export const extractCollegeDomainFromEmail = (email: string): string | null => {
 
 // Helper function to check if user is admin
 export const isUserAdmin = async (userId?: string): Promise<boolean> => {
-  const { data: { user } } = await supabase.auth.getUser();
-  const targetUserId = userId || user?.id;
-  
-  if (!targetUserId) return false;
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    const targetUserId = userId || user?.id;
+    
+    if (!targetUserId) return false;
 
-  const { data: userData } = await supabase
-    .from('users')
-    .select('user_role')
-    .eq('id', targetUserId)
-    .single();
+    const { data: userData, error } = await supabase
+      .from('users')
+      .select('user_role')
+      .eq('id', targetUserId)
+      .single();
 
-  return userData?.user_role === 'admin';
+    if (error) {
+      console.error('Error checking admin status:', error);
+      return false;
+    }
+
+    return userData?.user_role === 'admin';
+  } catch (error) {
+    console.error('Error in isUserAdmin:', error);
+    return false;
+  }
 };
 
 // Helper function to get signed URL for file download

@@ -123,58 +123,67 @@ export const UploadForm: React.FC = () => {
     const uploadPromises = [];
 
     try {
-      for (const file of files) {
+      // Process files concurrently for better performance
+      const uploadPromises = files.map(async (file) => {
         const collegeDomain = profile?.college_domain || 'general';
         const filePath = generateFilePath(user.id, file.name, collegeDomain);
         
-        uploadPromises.push(
-          (async () => {
-            console.log('Uploading file:', file.name, 'to path:', filePath);
-            
-            // Upload file to storage
-            const { data: uploadData, error: uploadError } = await uploadFile(file, filePath);
-            
-            if (uploadError) {
-              console.error('Upload error:', uploadError);
-              throw new Error(`Failed to upload ${file.name}: ${uploadError.message}`);
-            }
+        try {
+          console.log('Uploading file:', file.name, 'to path:', filePath);
+          
+          // Upload file to storage
+          const { data: uploadData, error: uploadError } = await uploadFile(file, filePath);
+          
+          if (uploadError) {
+            console.error('Upload error:', uploadError);
+            throw new Error(`Failed to upload ${file.name}: ${uploadError.message}`);
+          }
 
-            console.log('File uploaded successfully, creating database record...');
-            
-            // Create note record in database
-            const noteData = {
-              title: formData.title,
-              description: formData.description || null,
-              subject_id: formData.subject_id || null,
-              uploader_id: user.id,
-              file_name: file.name,
-              file_path: filePath,
-              file_size: file.size,
-              file_type: file.name.split('.').pop()?.toLowerCase() as any,
-              mime_type: file.type,
-              semester: formData.semester || null,
-              year_of_study: formData.year_of_study,
-              tags: formData.tags.length > 0 ? formData.tags : null,
-              visibility: formData.visibility,
-              college_domain: collegeDomain,
-            };
-            
-            console.log('Inserting note data:', noteData);
-            
-            const { error: dbError } = await supabase
-              .from('notes')
-              .insert(noteData);
+          console.log('File uploaded successfully, creating database record...');
+          
+          // Create note record in database
+          const noteData = {
+            title: formData.title,
+            description: formData.description || null,
+            subject_id: formData.subject_id || null,
+            uploader_id: user.id,
+            file_name: file.name,
+            file_path: filePath,
+            file_size: file.size,
+            file_type: file.name.split('.').pop()?.toLowerCase() as any,
+            mime_type: file.type,
+            semester: formData.semester || null,
+            year_of_study: formData.year_of_study,
+            tags: formData.tags.length > 0 ? formData.tags : null,
+            visibility: formData.visibility,
+            college_domain: collegeDomain,
+          };
+          
+          console.log('Inserting note data:', noteData);
+          
+          const { error: dbError } = await supabase
+            .from('notes')
+            .insert(noteData);
 
-            if (dbError) {
-              console.error('Database error:', dbError);
-              throw new Error(`Failed to save note metadata: ${dbError.message}`);
-            }
+          if (dbError) {
+            console.error('Database error:', dbError);
+            // Clean up uploaded file on database failure
+            await supabase.storage.from('student-notes').remove([filePath]);
+            throw new Error(`Failed to save note metadata: ${dbError.message}`);
+          }
 
-            console.log('Note saved successfully!');
-            return { file: file.name, success: true };
-          })()
-        );
-      }
+          console.log('Note saved successfully!');
+          return { file: file.name, success: true };
+        } catch (error) {
+          // Ensure file cleanup on any error
+          try {
+            await supabase.storage.from('student-notes').remove([filePath]);
+          } catch (cleanupError) {
+            console.error('Failed to cleanup file:', cleanupError);
+          }
+          throw error;
+        }
+      });
 
       const results = await Promise.allSettled(uploadPromises);
       const successful = results.filter(result => result.status === 'fulfilled').length;

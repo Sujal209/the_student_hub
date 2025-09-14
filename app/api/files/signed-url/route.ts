@@ -12,6 +12,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate path to prevent path traversal
+    if (path.includes('..') || path.includes('//') || !/^[a-zA-Z0-9/_.-]+$/.test(path)) {
+      return NextResponse.json(
+        { error: 'Invalid file path' },
+        { status: 400 }
+      );
+    }
+
     // Use admin client to generate signed URL
     const supabase = createAdminClient();
 
@@ -20,7 +28,7 @@ export async function POST(request: NextRequest) {
       .createSignedUrl(path, expiresIn);
 
     if (error) {
-      console.error('Error creating signed URL:', error);
+      console.error('Error creating signed URL:', { message: error.message, code: error.code });
       return NextResponse.json(
         { error: error.message },
         { status: 400 }
