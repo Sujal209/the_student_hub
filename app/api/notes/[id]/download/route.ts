@@ -36,10 +36,11 @@ export async function POST(
 
     // Update download count
     if (user_id) {
-      await supabase
+      const currentCount = (note as any).download_count || 0;
+      await (supabase as any)
         .from('notes')
         .update({ 
-          download_count: ((note as any).download_count || 0) + 1 
+          download_count: currentCount + 1 
         })
         .eq('id', params.id);
     }
