@@ -14,7 +14,7 @@ export async function POST(
     // Get note details
     const { data: note, error: noteError } = await supabase
       .from('notes')
-      .select('file_path, college_domain, uploader_id, title')
+      .select('file_path, college_domain, uploader_id, title, download_count')
       .eq('id', params.id)
       .single();
 
@@ -34,21 +34,14 @@ export async function POST(
       return NextResponse.json({ error: 'Failed to generate download link' }, { status: 500 });
     }
 
-    // Track the download
+    // Update download count
     if (user_id) {
-      const { error: trackingError } = await supabase
-        .from('note_downloads')
-        .insert({
-          note_id: params.id,
-          user_id,
-          ip_address: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
-          user_agent: request.headers.get('user-agent') || 'unknown',
-        });
-
-      if (trackingError) {
-        console.error('Error tracking download:', trackingError);
-        // Don't fail the request if tracking fails
-      }
+      await supabase
+        .from('notes')
+        .update({ 
+          download_count: ((note as any).download_count || 0) + 1 
+        })
+        .eq('id', params.id);
     }
 
     return NextResponse.json({ 
